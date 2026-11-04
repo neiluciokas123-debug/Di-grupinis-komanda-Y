@@ -33,8 +33,11 @@ def occlusion(predictor, text: str, max_words: int = 120) -> list[tuple[str, flo
     if not words:
         return []
     variants = [" ".join(words)] + [" ".join(words[:i] + words[i + 1:]) for i in range(len(words))]
-    p = np.clip(predictor.predict_proba(variants)[:, 0], 1e-6, 1 - 1e-6)
-    logit = np.log(p / (1 - p))
+    if hasattr(predictor, "predict_logit"):
+        logit = np.asarray(predictor.predict_logit(variants), dtype=float)
+    else:
+        p = np.clip(predictor.predict_proba(variants)[:, 0], 1e-6, 1 - 1e-6)
+        logit = np.log(p / (1 - p))
     return [(w, float(logit[0] - logit[i + 1])) for i, w in enumerate(words)]
 
 
