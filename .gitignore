@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Duomenys (Kaggle licencija neleidžia jų perplatinti – kiekvienas atsisiunčia pats)
+data/raw/*
+data/processed/*
+!data/raw/README.md
+
+# Modeliai dideli (DistilBERT ~260 MB) – keliami į Google Drive / HF Hub, ne į GitHub
+models/
