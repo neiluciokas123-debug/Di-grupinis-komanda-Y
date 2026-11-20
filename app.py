@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 
 import config as C
+from src.censor import censor
 from src.explain import occlusion
 from src.predict import available_models, zone
 
@@ -27,6 +28,9 @@ EXAMPLES = [
     "Shut up, you pathetic loser.",
     "I will find you and you will regret this.",
     "I am a proud gay man.",
+    "Please kill the process before restarting the server.",
+    "This article is crap, whoever wrote it is a moron.",
+    "you are such an idi0t lol",
 ]
 
 
@@ -72,6 +76,10 @@ st.sidebar.markdown(
 Modelio F1-optimalus slenkstis: **{thr:.2f}**
 
 ---
+**🧹 DI žodžių filtras** paslepia tik tuos žodžius, kurie daro
+komentarą agresyvų (pagal kontekstą, ne pagal sąrašą).
+
+---
 Sistema **tik pataria**. Galutinį sprendimą visada priima žmogus.
 Veikia tik **anglų kalba**.
 """
@@ -108,6 +116,29 @@ with tab1:
                                 "Tikimybė": probs[1:]}).set_index("Kategorija")
             st.bar_chart(cat, horizontal=True, height=230)
 
+        # ---- DI žodžių filtras
+        st.markdown("### 🧹 DI žodžių filtras")
+        if p < C.ZONE_LOW:
+            st.info("Komentaras neagresyvus – valyti nereikia.")
+        else:
+            with st.spinner("DI ieško agresyvių žodžių..."):
+                r = censor(model, text)
+            st.markdown(f'<div style="border:1px solid #888;border-radius:10px;padding:12px 16px;'
+                        f'font-size:1.15rem;font-family:monospace">{html.escape(r.censored)}</div>',
+                        unsafe_allow_html=True)
+            f1, f2 = st.columns(2)
+            f1.metric("Paslėpta žodžių", r.n_masked)
+            f2.metric("Agresyvumas po valymo", f"{r.prob_after:.1%}",
+                      delta=f"{(r.prob_after - r.prob_before) * 100:+.1f} p. p.", delta_color="inverse")
+            if r.success and r.n_masked:
+                st.success("✅ Išvalytą versiją galima publikuoti – agresija buvo tik atskiruose žodžiuose.")
+            elif r.n_masked:
+                st.warning("⚠️ Paslėpus žodžius komentaras vis tiek agresyvus – agresija slypi sakinio "
+                           "prasmėje (pvz. grasinimas). Sprendžia moderatorius.")
+            else:
+                st.warning("⚠️ DI nerado atskirų agresyvių žodžių – agresija slypi sakinio prasmėje. "
+                           "Sprendžia moderatorius.")
+
         st.markdown("**Kodėl? (XAI – kiekvieno žodžio įtaka)**  "
                     "<span style='color:#c0392b'>raudona</span> – didina agresyvumą, "
                     "<span style='color:#27ae60'>žalia</span> – mažina",
@@ -133,6 +164,20 @@ with tab2:
             out = pd.DataFrame({"Komentaras": df[col].astype(str), "Tikimybė": pr[:, 0].round(3)})
             out["Siūlymas"] = [ZONES[zone(x)][0] for x in out["Tikimybė"]]
             out["Moderatorius: pašalinti?"] = out["Tikimybė"] >= C.ZONE_HIGH
+            if st.checkbox("🧹 Išvalyti agresyvius komentarus DI žodžių filtru (lėčiau)"):
+                flagged = out.index[out["Tikimybė"] >= C.ZONE_LOW][:300]
+                bar = st.progress(0.0, text="DI slepia agresyvius žodžius...")
+                cleaned = {}
+                for k, idx in enumerate(flagged):
+                    cleaned[idx] = censor(model, out.at[idx, "Komentaras"])
+                    bar.progress((k + 1) / max(len(flagged), 1))
+                bar.empty()
+                out["Išvalytas komentaras"] = [cleaned[i].censored if i in cleaned else c
+                                               for i, c in zip(out.index, out["Komentaras"])]
+                out["Agresyvumas po valymo"] = [round(cleaned[i].prob_after, 3) if i in cleaned else t
+                                                for i, t in zip(out.index, out["Tikimybė"])]
+                if len(flagged) == 300:
+                    st.caption("Išvalyti pirmi 300 pažymėtų komentarų.")
             out = out.sort_values("Tikimybė", ascending=False)
 
             k1, k2, k3 = st.columns(3)
@@ -141,7 +186,7 @@ with tab2:
             k3.metric("Paslėpti", int((out["Tikimybė"] >= C.ZONE_HIGH).sum()))
 
             edited = st.data_editor(out, hide_index=True,
-                                    disabled=["Komentaras", "Tikimybė", "Siūlymas"])
+                                    disabled=[c for c in out.columns if c != "Moderatorius: pašalinti?"])
             st.download_button("⬇️ Atsisiųsti moderatoriaus sprendimus",
                                edited.to_csv(index=False).encode("utf-8"),
                                "moderavimo_sprendimai.csv", "text/csv")
