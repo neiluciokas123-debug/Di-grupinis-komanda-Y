@@ -178,10 +178,12 @@ paduodamas tekstas be paslėptų žodžių, nes pačios žvaigždutės („f***�
 | Modelis | Agresyvių komentarų | Išvalyta paslepiant žodžius | Vid. paslėptų žodžių | Agresyvumas prieš → po |
 |---|---|---|---|---|
 | TF-IDF + LogReg | 260 | 65,0 % | 2,1 | 0,92 → 0,38 |
-| DistilBERT | | | | |
+| **DistilBERT** | 258 | **69,0 %** | **1,8** | 0,90 → **0,32** |
 
-*(300 atsitiktinių agresyvių test komentarų, 3–60 žodžių. DistilBERT eilutė užpildoma paleidus
-`python -m src.censor --model distilbert --eval 300`.)*
+*(300 atsitiktinių agresyvių test komentarų, 3–60 žodžių; `python -m src.censor --model distilbert --eval 300`,
+Google Colab T4.)* Pvz. su DistilBERT: „This article is crap, whoever wrote it is a moron.“ – 99 % → 0,1 % paslėpus 2 žodžius;
+„You are an idiot and nobody wants you here.“ – paslėpus „idiot“ lieka 48 %, nes frazė „nobody wants you here“
+pati yra priešiška, todėl sprendžia moderatorius.
 Baseline nepavykusių atvejų dažna priežastis – jis frazę „you are …“ laiko agresyvia net
 be įžeidimų (pvz. „You are a nice person“ → 0,97), todėl tokie komentarai paliekami moderatoriui.
 
