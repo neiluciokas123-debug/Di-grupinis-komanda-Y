@@ -69,6 +69,7 @@ agresijos-filtras/
 │   ├── train_distilbert.py  # Proposed (DistilBERT)
 │   ├── evaluate.py          # lyginamoji lentelė, konfuzijos matricos, latencija, šališkumo testas
 │   ├── explain.py           # XAI: okliuzija, LIME, globalūs LR koeficientai
+│   ├── censor.py            # DI žodžių filtras: paslepia tik agresyvius žodžius
 │   ├── predict.py           # vieninga modelių sąsaja + komandinė eilutė
 │   ├── metrics.py
 │   └── text_utils.py
@@ -107,6 +108,14 @@ streamlit run app.py             # 7. demonstracija → http://localhost:8501
 > ir išarchyvuokite į projekto katalogą – tada `streamlit run app.py` veiks ir jūsų kompiuteryje (CPU).
 >
 > Greitas bandymas CPU: `python -m src.train_distilbert --max-train 5000 --epochs 1`
+
+DI žodžių filtras komandinėje eilutėje:
+
+```bash
+python -m src.censor "This article is crap, whoever wrote it is a moron."
+# -> This article is ****, whoever wrote it is a *****.
+python -m src.censor --eval 300      # įvertinimas test aibėje -> reports/metrics/censor_summary.csv
+```
 
 Vieno komentaro patikrinimas komandinėje eilutėje:
 
@@ -147,16 +156,49 @@ lr = 3e-5, batch 32, 2 epochos, linear warmup 6 %, fp16 (GPU), išsaugoma geriau
 - *LIME* – HTML paaiškinimai `reports/xai/`;
 - *globalūs LR koeficientai* – kokie žodžiai Baseline modeliui reiškia agresiją.
 
+**DI žodžių filtras (`src/censor.py`).** Užuot pašalinus visą agresyvų komentarą,
+sistema gali paslėpti tik tuos žodžius, kurie jį daro agresyvų:
+
+> *This article is crap, whoever wrote it is a moron.* → *This article is \*\*\*\*, whoever wrote it is a \*\*\*\*\*.*
+
+Algoritmas (godusis, paremtas XAI okliuzija):
+1. modelis įvertina komentarą; jei agresyvumas < 0.40 – nieko nedaroma;
+2. kiekvienam žodžiui apskaičiuojama jo įtaka agresyvumui (log-odds pokytis jį pašalinus);
+3. įtakingiausias žodis paslepiamas žvaigždutėmis, ir viskas kartojama,
+   kol komentaras tampa neagresyvus (< 0.40) arba paslėpta 8 žodžiai;
+4. jei paslėpus žodžius komentaras vis tiek agresyvus (pvz. grasinimas be keiksmažodžių),
+   sprendimą priima moderatorius.
+
+Skirtumai nuo juodojo sąrašo: sprendžia DI pagal kontekstą („kill the process“ paliekama,
+„I will kill you“ – ne), atpažįstami užmaskuoti žodžiai („idi0t“).
+Saugikliai: tarnybiniai žodžiai (you, are, the…) ir **tapatybės žodžiai** (gay, black,
+muslim…) niekada neslepiami – jų slėpimas būtų diskriminacinis. Modeliui vertinti
+paduodamas tekstas be paslėptų žodžių, nes pačios žvaigždutės („f***“) duomenyse siejasi su agresija.
+
+| Modelis | Agresyvių komentarų | Išvalyta paslepiant žodžius | Vid. paslėptų žodžių | Agresyvumas prieš → po |
+|---|---|---|---|---|
+| TF-IDF + LogReg | 260 | 65,0 % | 2,1 | 0,92 → 0,38 |
+| DistilBERT | | | | |
+
+*(300 atsitiktinių agresyvių test komentarų, 3–60 žodžių. DistilBERT eilutė užpildoma paleidus
+`python -m src.censor --model distilbert --eval 300`.)*
+Baseline nepavykusių atvejų dažna priežastis – jis frazę „you are …“ laiko agresyvia net
+be įžeidimų (pvz. „You are a nice person“ → 0,97), todėl tokie komentarai paliekami moderatoriui.
+
 ## 6. Rezultatai
 
-Užpildoma paleidus `python -m src.evaluate` (lentelė `reports/metrics/comparison.md`):
+Test aibė: 15 920 komentarų (agresyvių 10,2 %), klasė „agresyvus“. Gauta `python -m src.evaluate`
+(Google Colab, T4 GPU; DistilBERT treniruotas su 50 000 komentarų, 2 epochos):
 
 | Modelis | Accuracy | Precision | Recall | F1 | ROC-AUC | PR-AUC |
 |---|---|---|---|---|---|---|
-| Dažniausia klasė | | | | | | |
-| Taisyklės (žodynas) | | | | | | |
-| TF-IDF + LogReg (Baseline) | | | | | | |
-| DistilBERT (Proposed) | | | | | | |
+| Dažniausia klasė | 0.898 | 0.000 | 0.000 | 0.000 | 0.500 | 0.102 |
+| Taisyklės (žodynas) | 0.943 | 0.742 | 0.677 | 0.708 | 0.825 | 0.535 |
+| TF-IDF + LogReg (Baseline) | 0.963 | 0.854 | 0.766 | 0.807 | 0.980 | 0.899 |
+| **DistilBERT (Proposed)** | **0.970** | **0.876** | **0.815** | **0.845** | **0.987** | **0.925** |
+
+Inferencijos laikas (CPU, 1 komentaras): Baseline ~3 ms, DistilBERT ~80 ms (95 % – iki ~141 ms) – atitinka < 200 ms reikalavimą.
+Šališkumo testas: neutralus sakinys su „gay“ – Baseline 0,96, DistilBERT 0,53; su „black“ – 0,57 ir 0,22.
 
 Grafikai ataskaitai: `reports/figures/` (konfuzijos matricos, ROC/PR kreivės, treniravimo kreivės,
 F1 pagal kategoriją, šališkumo testas, EDA). Sėkmės / nesėkmės pavyzdžiai: `reports/metrics/examples_*.csv`.
@@ -183,6 +225,8 @@ F1 pagal kategoriją, šališkumo testas, EDA). Sėkmės / nesėkmės pavyzdžia
 - Retos kategorijos (`threat`, `identity_hate` < 1 %) atpažįstamos daug prasčiau.
 - DistilBERT mato tik pirmus 128 žetonus; labai ilguose komentaruose agresija pabaigoje gali būti praleista.
 - Anotacijos subjektyvios: žmonės ne visada sutaria, kas yra „toksiška“.
+- DI žodžių filtras gali praleisti retus įžeidimus, kurių modelis beveik nematė, ir lėtesnis
+  už paprastą tikrinimą (kelis kartus perskaičiuoja komentarą), todėl CSV režime valoma iki 300 komentarų.
 
 ## 9. Literatūra
 
