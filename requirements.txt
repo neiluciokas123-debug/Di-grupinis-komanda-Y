@@ -1,3 +1,6 @@
+# CPU torch versija (mažesnė; GPU nereikia nei debesyje, nei Windows kompiuteryje)
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 # Duomenys ir klasikinis ML
 numpy>=1.26
 pandas>=2.0

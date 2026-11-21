@@ -184,8 +184,13 @@ with tab0:
 
         # Pasiūlymas: pirmiausia – paslėpti agresyvūs žodžiai (jei to užtenka), kitaip – be šauksmų
         suggestion = None
-        if w.censor is not None and w.censor.n_masked and w.censor.success:
-            suggestion = ("🧹 Pasiūlymas – paslėpti įžeidžiantys žodžiai", w.censor.censored)
+        if w.censor is not None and w.censor.success:
+            # žodžių filtras taikytas ramesnei versijai: jei slėpti nieko nereikėjo,
+            # užteko pašalinti šauksmus
+            label = ("🧹 Pasiūlymas – paslėpti įžeidžiantys žodžiai" if w.censor.n_masked
+                     else "🔉 Pasiūlymas – ta pati mintis be šauksmų")
+            if w.censor.censored != w.text:
+                suggestion = (label, w.censor.censored)
         elif w.calm_text and w.prob < C.ZONE_LOW:
             suggestion = ("🔉 Pasiūlymas – ta pati mintis be šauksmų", w.calm_text)
         if suggestion:
