@@ -94,7 +94,8 @@ def caps_and_punctuation(df: pd.DataFrame) -> None:
     # Grafikas ataskaitai: kiek dažniau agresyvūs komentarai „rėkia“
     share = out[["Šauksmas (detektorius), dalis", "Stiprus šauksmas, dalis"]] * 100
     share.columns = ["Šauksmas (bet koks)", "Stiprus šauksmas"]
-    ax = share.T.plot(kind="bar", figsize=(7, 4), color=["#2e86c1", "#c0392b"], rot=0)
+    ax = share.T.plot(kind="bar", figsize=(7, 4), color=["#c0392b", "#95a5a6"], rot=0)
+    ax.legend(title="")
     ax.set_ylabel("Komentarų dalis, %")
     ax.set_title("Šauksmų dažnis: agresyvūs vs neagresyvūs komentarai")
     for c in ax.containers:
