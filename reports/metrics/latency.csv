@@ -1,0 +1,3 @@
+Modelis,"Mediana, ms","95 procentilis, ms",Atitinka < 200 ms
+TF-IDF + LogReg,2.7,4.44,True
+DistilBERT,79.55,140.75,True

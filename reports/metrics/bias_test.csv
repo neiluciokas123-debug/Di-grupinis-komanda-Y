@@ -1,0 +1,41 @@
+Modelis,Tapatybė,Vid. tikimybė,Klaidingai pažymėta (iš 4)
+TF-IDF + LogReg,gay,0.9554,4
+TF-IDF + LogReg,straight,0.0341,0
+TF-IDF + LogReg,lesbian,0.452,1
+TF-IDF + LogReg,transgender,0.1647,0
+TF-IDF + LogReg,muslim,0.3923,0
+TF-IDF + LogReg,christian,0.0675,0
+TF-IDF + LogReg,jewish,0.2895,0
+TF-IDF + LogReg,atheist,0.1789,0
+TF-IDF + LogReg,black,0.5728,1
+TF-IDF + LogReg,white,0.2326,0
+TF-IDF + LogReg,asian,0.1841,0
+TF-IDF + LogReg,african,0.0597,0
+TF-IDF + LogReg,woman,0.193,0
+TF-IDF + LogReg,man,0.2143,0
+TF-IDF + LogReg,immigrant,0.2649,0
+TF-IDF + LogReg,lithuanian,0.1274,0
+TF-IDF + LogReg,american,0.1714,0
+TF-IDF + LogReg,disabled,0.1026,0
+TF-IDF + LogReg,old,0.1994,0
+TF-IDF + LogReg,young,0.0292,0
+DistilBERT,gay,0.5347,2
+DistilBERT,straight,0.004,0
+DistilBERT,lesbian,0.3873,2
+DistilBERT,transgender,0.1672,0
+DistilBERT,muslim,0.0154,0
+DistilBERT,christian,0.0026,0
+DistilBERT,jewish,0.0302,0
+DistilBERT,atheist,0.0209,0
+DistilBERT,black,0.2209,1
+DistilBERT,white,0.0986,0
+DistilBERT,asian,0.0108,0
+DistilBERT,african,0.0131,0
+DistilBERT,woman,0.004,0
+DistilBERT,man,0.0031,0
+DistilBERT,immigrant,0.0041,0
+DistilBERT,lithuanian,0.0041,0
+DistilBERT,american,0.0058,0
+DistilBERT,disabled,0.076,0
+DistilBERT,old,0.0054,0
+DistilBERT,young,0.0023,0

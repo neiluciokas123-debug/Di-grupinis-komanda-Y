@@ -1,0 +1,5 @@
+Modelis,Accuracy,Precision,Recall,F1,ROC-AUC,PR-AUC,Slenkstis
+Dažniausia klasė,0.8984,0.0,0.0,0.0,0.5,0.1016,0.5
+Taisyklės (žodynas),0.9433,0.742,0.6774,0.7082,0.8254,0.5354,0.5
+TF-IDF + LogReg,0.9629,0.8539,0.7658,0.8074,0.9797,0.899,0.7454
+DistilBERT,0.9695,0.8764,0.8152,0.8447,0.9866,0.9247,0.5891

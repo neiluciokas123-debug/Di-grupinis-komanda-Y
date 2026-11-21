@@ -1,0 +1,15 @@
+Modelis,Kategorija,Teigiamų test aibėje,F1,ROC-AUC
+TF-IDF + LogReg,Agresyvus,1618,0.8074,0.9797
+TF-IDF + LogReg,Toksiškas,1515,0.8032,0.9781
+TF-IDF + LogReg,Labai toksiškas,157,0.5,0.9871
+TF-IDF + LogReg,Nešvankus,840,0.8118,0.9895
+TF-IDF + LogReg,Grasinimas,55,0.48,0.9911
+TF-IDF + LogReg,Įžeidimas,794,0.7281,0.9811
+TF-IDF + LogReg,Neapykanta grupei,151,0.5205,0.9791
+DistilBERT,Agresyvus,1618,0.8447,0.9866
+DistilBERT,Toksiškas,1515,0.8289,0.9859
+DistilBERT,Labai toksiškas,157,0.4829,0.9915
+DistilBERT,Nešvankus,840,0.8161,0.9919
+DistilBERT,Grasinimas,55,0.2838,0.9634
+DistilBERT,Įžeidimas,794,0.7671,0.9878
+DistilBERT,Neapykanta grupei,151,0.4969,0.9867
