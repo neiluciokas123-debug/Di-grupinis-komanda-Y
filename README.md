@@ -310,8 +310,8 @@ F1 pagal kategoriją, šališkumo testas, EDA). Sėkmės / nesėkmės pavyzdžia
 | Narys | Atsakomybė |
 |---|---|
 | Neilas Rimkus | Modeliai (Baseline, DistilBERT, treniravimas), DI žodžių filtras, šauksmų detektorius ir perspėjimo logika |
-| Rokas Razokas | Duomenų rinkimas, valymas, anonimizavimas, EDA |
-| Rokas Rapalavičius | Ataskaita |
+| Rokas Razokas | Duomenų rinkimas, valymas, anonimizavimas, EDA, paaiškinamumas (XAI) |
+| Rokas Rapalavičius | Modelių vertinimas ir palyginimas, grafinė sąsaja (Streamlit), ataskaita |
 
 Lietuvos inžinerijos kolegija · dalykas „Dirbtinis intelektas“ · grupė SI-5 · dėstytojas Laimonas Kairiūkštis
 
