@@ -18,6 +18,7 @@ import seaborn as sns
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config as C
 from src.data import load_split
+from src.shouting import detect as detect_shouting
 from src.text_utils import tokenize
 
 sns.set_theme(style="whitegrid")
@@ -82,9 +83,25 @@ def caps_and_punctuation(df: pd.DataFrame) -> None:
     feats = pd.DataFrame({
         "Didžiųjų raidžių dalis": txt.str.count(r"[A-Z]") / letters,
         "Šauktukų skaičius": txt.str.count("!"),
+        # šauksmų detektoriaus (src/shouting.py) sprendimas – pagrindžia jo naudingumą
+        "Šauksmas (detektorius), dalis": txt.map(lambda t: detect_shouting(t).is_shouting).astype(float),
+        "Stiprus šauksmas, dalis": txt.map(lambda t: detect_shouting(t).level == "strong").astype(float),
     })
-    out = feats.groupby(df[C.MAIN_LABEL].map({0: "Neagresyvūs", 1: "Agresyvūs"})).mean().round(3)
+    group = df[C.MAIN_LABEL].map({0: "Neagresyvūs", 1: "Agresyvūs"})
+    out = feats.groupby(group).mean().round(3)
     out.to_csv(C.METRICS_DIR / "eda_style.csv")
+
+    # Grafikas ataskaitai: kiek dažniau agresyvūs komentarai „rėkia“
+    share = out[["Šauksmas (detektorius), dalis", "Stiprus šauksmas, dalis"]] * 100
+    share.columns = ["Šauksmas (bet koks)", "Stiprus šauksmas"]
+    ax = share.T.plot(kind="bar", figsize=(7, 4), color=["#2e86c1", "#c0392b"], rot=0)
+    ax.set_ylabel("Komentarų dalis, %")
+    ax.set_title("Šauksmų dažnis: agresyvūs vs neagresyvūs komentarai")
+    for c in ax.containers:
+        ax.bar_label(c, fmt="%.1f%%", fontsize=8)
+    plt.tight_layout()
+    plt.savefig(C.FIGURES_DIR / "eda_shouting.png", dpi=150)
+    plt.close()
 
 
 def relative_word_frequency(df: pd.DataFrame, min_count: int = 30, top_n: int = 30) -> pd.DataFrame:
