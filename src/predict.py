@@ -47,11 +47,27 @@ class RulePredictor:
         return out
 
 
+def _ensure_baseline_file(path=C.BASELINE_DIR / "tfidf_lr.joblib") -> bool:
+    """Baseline modelis GitHub laikomas dalimis (*.part1, *.part2 ...), nes naršyklėje
+    įkeliamo failo dydis ribotas. Jei pilno failo nėra, jis sujungiamas iš dalių."""
+    path = Path(path)
+    if path.exists():
+        return True
+    parts = sorted(path.parent.glob(path.name + ".part*"), key=lambda q: int(q.suffix[5:]))
+    if not parts:
+        return False
+    with open(path, "wb") as out:
+        for part in parts:
+            out.write(part.read_bytes())
+    return True
+
+
 class BaselinePredictor:
     name = "TF-IDF + LogReg"
     has_categories = True
 
     def __init__(self, path=C.BASELINE_DIR / "tfidf_lr.joblib"):
+        _ensure_baseline_file(path)
         b = joblib.load(path)
         self.word_vec, self.char_vec = b["word_vec"], b["char_vec"]
         self.models, self.thresholds = b["models"], b["thresholds"]
@@ -114,7 +130,7 @@ def available_models() -> dict:
             res["DistilBERT"] = DistilBertPredictor
         except ImportError:
             pass
-    if (C.BASELINE_DIR / "tfidf_lr.joblib").exists():
+    if _ensure_baseline_file():
         res["TF-IDF + LogReg"] = BaselinePredictor
     return res
 
