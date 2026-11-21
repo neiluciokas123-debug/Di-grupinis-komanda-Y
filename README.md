@@ -20,6 +20,25 @@ Lyginami du eksperimentai (pagal metodikos reikalavimą):
 | **Proposed** | DistilBERT (perkeliamasis mokymas) | Supranta kontekstą, atitinka < 200 ms reikalavimą |
 | *Papildomi atskaitos taškai* | Dažniausios klasės prognozė; taisyklės (juodasis žodžių sąrašas) | Įrodo, kad DI pranašesnis už elementarų sprendimą |
 
+
+## ⚡ Greitas paleidimas
+
+**Be diegimo (naršyklėje):** https://agresijos-filtras.streamlit.app – veikia Baseline modelis (TF-IDF + LogReg).
+
+**Savo kompiuteryje** (reikia **Python 3.11–3.13**; su 3.14+ dalis paketų dar neįsidiegia):
+
+```bash
+git clone https://github.com/neiluciokas123-debug/Di-grupinis-komanda-Y.git
+cd Di-grupinis-komanda-Y
+pip install -r requirements.txt
+streamlit run app.py          # -> http://localhost:8501
+```
+
+Baseline modelis yra repozitorijoje (`models/baseline/`), todėl programa veikia iškart, be treniravimo ir be duomenų.
+
+**DistilBERT (patobulintas modelis, ~260 MB)** netelpa į GitHub. Norint jį naudoti, atsisiųskite `rezultatai.zip` (nuoroda pateikiama kartu su darbu) ir išarchyvuokite į projekto katalogą, kad atsirastų `models/distilbert/`. Tada sąsajos šoninėje juostoje bus galima rinktis abu modelius.
+
+
 ---
 
 ## 1. Projekto klasifikavimas
