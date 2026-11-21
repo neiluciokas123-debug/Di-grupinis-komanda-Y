@@ -1,8 +1,16 @@
 # 🛡️ Interneto komentarų agresijos filtras
 
-Dirbtinio intelekto sistema, kuri įvertina, ar angliškas interneto komentaras yra agresyvus
-(toksiškas, įžeidžiantis, grasinantis ir pan.), ir **pasiūlo** moderatoriui sprendimą:
-publikuoti, peržiūrėti arba laikinai paslėpti. Galutinį sprendimą visada priima žmogus.
+**Tema Nr. 49.** Interneto komentarų agresijos filtravimas: prieš paskelbiant viešą komentarą
+sistema perspėja vartotoją, jei jo žinutė turi toksiškumo požymių (patyčios, šauksmai).
+
+Kai vartotojas spaudžia **„Skelbti“**, DI patikrina angliškai parašytą komentarą:
+- **DI modelis** (TF-IDF + LogReg arba DistilBERT) įvertina agresiją: patyčias, įžeidimus, grasinimus, nešvankybes;
+- **šauksmų detektorius** aptinka RAŠYMĄ DIDŽIOSIOMIS, „!!!“, ištęstus žodžius („STOOOP“).
+
+Jei randama toksiškumo požymių, autorius **perspėjamas** ir jam **pasiūloma pataisyta versija**
+(paslėpti įžeidžiantys žodžiai arba ta pati mintis be šauksmų). Galutinį sprendimą –
+redaguoti, priimti pasiūlymą ar skelbti vis tiek – visada priima pats autorius.
+Papildomai sąsajoje yra moderatoriaus režimas (paketinis CSV tikrinimas).
 
 Lyginami du eksperimentai (pagal metodikos reikalavimą):
 
@@ -22,40 +30,46 @@ Lyginami du eksperimentai (pagal metodikos reikalavimą):
 | Duomenų šaltinis | **Atviras duomenų rinkinys** (Jigsaw Toxic Comment, Kaggle) | Realių naujų asmens duomenų nerenkame; IP, el. paštai, URL ir vartotojų vardai pašalinami valant |
 | Realus laikas | **Taip** (< 200 ms vienam komentarui) | Renkamės lengvą **DistilBERT**, ne BERT-large/RoBERTa-large; latencija matuojama (`latency.csv`) |
 | Aparatūra | **Nėra** (grynai programinis) | – |
-| Sprendimo kritiškumas | **Informacinis** (pataria) | Modelis nieko nešalina pats: tik siūlo zoną, moderatorius patvirtina |
+| Sprendimo kritiškumas | **Informacinis** (pataria) | Sistema nieko neblokuoja ir nešalina: tik perspėja autorių ir siūlo pataisymą, sprendžia žmogus |
 
 ## 2. Sistemos architektūra
 
 ```
-                 ┌──────────────┐
- Komentaras ───▶ │  Valymas ir  │  URL/IP/el. paštas/vartotojas → [URL]/[IP]/[EMAIL]/[USER]
- (anglų k.)      │ anonimizavimas│
-                 └──────┬───────┘
-                        ▼
-        ┌───────────────┴────────────────┐
-        ▼                                ▼
- ┌──────────────┐                ┌──────────────┐
- │ TF-IDF + LR  │  (Baseline)    │  DistilBERT  │  (Proposed)
- └──────┬───────┘                └──────┬───────┘
-        └───────────────┬───────────────┘
-                        ▼
-         7 tikimybės: agresyvus + 6 kategorijos
-                        ▼
-     ┌──────────────────┼────────────────────┐
-     ▼                  ▼                    ▼
- < 0.40 Publikuoti  0.40–0.80 Moderatoriui  ≥ 0.80 Paslėpti iki patvirtinimo
+  ✍️ Vartotojas rašo komentarą ir spaudžia „Skelbti“
                         │
-                        ▼
-          XAI: kurie žodžiai lėmė sprendimą
-                        ▼
-              👤 Moderatoriaus sprendimas
+         ┌──────────────┴──────────────────────────────┐
+         ▼                                             ▼
+ ┌──────────────┐                             ┌─────────────────┐
+ │  Valymas ir  │ URL/IP/el. paštas → [URL]...│ Šauksmų detekto-│ DIDŽIOSIOS raidės,
+ │anonimizavimas│                             │ rius (taisyklės)│ „!!!“, „STOOOP“
+ └──────┬───────┘                             └────────┬────────┘
+        ▼                                              │
+ ┌──────────────┐   ┌──────────────┐                   │
+ │ TF-IDF + LR  │ / │  DistilBERT  │                   │
+ │  (Baseline)  │   │  (Proposed)  │                   │
+ └──────┬───────┘   └──────┬───────┘                   │
+        └────────┬─────────┘                           │
+                 ▼                                     │
+  7 tikimybės: agresyvus + 6 kategorijos               │
+                 └──────────────────┬──────────────────┘
+                                    ▼
+          ┌─────────────────────────┼──────────────────────────┐
+          ▼                         ▼                          ▼
+  < 0.40 ir nešaukia      0.40–0.80 arba šauksmas     ≥ 0.80 (arba agresija + šauksmas)
+  ✅ skelbiama iš karto   ⚠️ švelnus perspėjimas      ⛔ aiškus perspėjimas
+                                    │
+                                    ▼
+     Pasiūlymas: 🧹 paslėpti įžeidžiantys žodžiai (DI žodžių filtras, XAI)
+                 arba 🔉 ta pati mintis be šauksmų
+                                    ▼
+     👤 Autorius renkasi: priimti pasiūlymą / redaguoti / skelbti vis tiek
 ```
 
 ## 3. Failų struktūra
 
 ```
 agresijos-filtras/
-├── app.py                   # Streamlit sąsaja (demonstracijai)
+├── app.py                   # Streamlit sąsaja: perspėjimas autoriui + moderatoriaus režimas
 ├── config.py                # keliai, etiketės, moderavimo zonos
 ├── requirements.txt
 ├── Dockerfile
@@ -70,6 +84,8 @@ agresijos-filtras/
 │   ├── evaluate.py          # lyginamoji lentelė, konfuzijos matricos, latencija, šališkumo testas
 │   ├── explain.py           # XAI: okliuzija, LIME, globalūs LR koeficientai
 │   ├── censor.py            # DI žodžių filtras: paslepia tik agresyvius žodžius
+│   ├── shouting.py          # šauksmų detektorius (DIDŽIOSIOS raidės, „!!!“, ištęsti žodžiai)
+│   ├── warn.py              # perspėjimas prieš paskelbiant: DI modelis + šauksmai + pasiūlymas
 │   ├── predict.py           # vieninga modelių sąsaja + komandinė eilutė
 │   ├── metrics.py
 │   └── text_utils.py
@@ -115,6 +131,14 @@ DI žodžių filtras komandinėje eilutėje:
 python -m src.censor "This article is crap, whoever wrote it is a moron."
 # -> This article is ****, whoever wrote it is a *****.
 python -m src.censor --eval 300      # įvertinimas test aibėje -> reports/metrics/censor_summary.csv
+```
+
+Perspėjimas prieš paskelbiant ir šauksmų detektorius komandinėje eilutėje:
+
+```bash
+python -m src.warn "YOU ARE AN IDIOT!!!" "Thanks for the help"
+python -m src.shouting "WHY DO YOU NEVER LISTEN!!! STOOOP"
+# -> strong: DIDŽIOSIOS raidės (100 %), „!!!“, ištęsti žodžiai; ramiau: „Why do you never listen! Stop“
 ```
 
 Vieno komentaro patikrinimas komandinėje eilutėje:
@@ -187,6 +211,37 @@ pati yra priešiška, todėl sprendžia moderatorius.
 Baseline nepavykusių atvejų dažna priežastis – jis frazę „you are …“ laiko agresyvia net
 be įžeidimų (pvz. „You are a nice person“ → 0,97), todėl tokie komentarai paliekami moderatoriui.
 
+**Šauksmų detektorius (`src/shouting.py`).** Abu DI modeliai tekstą paverčia mažosiomis
+raidėmis (TF-IDF `lowercase=True`, DistilBERT *uncased*), todėl šauksmų jie nemato. Šauksmas
+pats savaime nebūtinai įžeidžia („THANK YOU SO MUCH!!!“), todėl jis vertinamas atskiru,
+lengvai paaiškinamu taisyklių sluoksniu:
+
+| Požymis | Slenkstis |
+|---|---|
+| Didžiųjų raidžių dalis (be santrumpų USA, NATO, BBC…; kai raidžių ≥ 8) | ≥ 70 % – stiprus, ≥ 40 % – švelnus |
+| Žodžiai vien DIDŽIOSIOMIS (≥ 3 raidžių) | ≥ 2 žodžiai – švelnus |
+| Šauktukų / klaustukų serijos | „!!!“ arba iš viso ≥ 4 „!“ |
+| Ištęsti žodžiai („nooooo“, „STOOOP“) | tik kartu su kitais požymiais |
+
+Lygis: 1 požymis – švelnus, ≥ 2 – stiprus šauksmas. Sistema pasiūlo ramesnę versiją:
+*„WHY DOES NOBODY READ THE RULES??? THIS IS RIDICULOUS!!!“ → „Why does nobody read the rules? This is ridiculous!“*
+Detektoriaus naudingumas patikrinamas EDA metu: kiek dažniau agresyvūs komentarai „rėkia“
+(`reports/figures/eda_shouting.png`, `reports/metrics/eda_style.csv`).
+
+**Perspėjimas prieš paskelbiant (`src/warn.py`, sąsajos skirtukas „✍️ Rašyti komentarą“).**
+
+| Situacija | Perspėjimas | Pasiūlymas |
+|---|---|---|
+| Agresyvumas < 0,40, nešaukia | – (skelbiama iš karto) | – |
+| Tik šauksmas | 📢 „Atrodo, kad jūs šaukiate“ | ta pati mintis be šauksmų |
+| Agresyvumas 0,40–0,80 | ⚠️ „Žinutė gali būti suprasta kaip agresyvi“ | paslėpti įžeidžiantys žodžiai |
+| Agresyvumas ≥ 0,80 arba agresija + stiprus šauksmas | ⛔ „Jūsų žinutė gali įžeisti kitus“ | paslėpti žodžiai; jei agresija slypi prasmėje – siūloma perrašyti |
+
+Perspėjime nurodoma, *kodėl* (agresyvumo tikimybė, aptiktos kategorijos – įžeidimas, grasinimas,
+neapykanta grupei – ir šauksmo požymiai). Autorius renkasi: **priimti pasiūlymą**, **redaguoti pats**
+arba **skelbti vis tiek** (tuomet stipriai agresyvus komentaras pažymimas moderatoriui).
+Sąsaja skaičiuoja sesijos statistiką: kiek komentarų patikrinta, kiek perspėta, kiek autorių pataisė.
+
 ## 6. Rezultatai
 
 Test aibė: 15 920 komentarų (agresyvių 10,2 %), klasė „agresyvus“. Gauta `python -m src.evaluate`
@@ -210,8 +265,11 @@ F1 pagal kategoriją, šališkumo testas, EDA). Sėkmės / nesėkmės pavyzdžia
 - **Privatumas:** naudojamas viešas, jau anotuotas duomenų rinkinys; nauji asmens duomenys nerenkami.
   Valant pašalinami IP adresai, el. paštai, URL ir Vikipedijos vartotojų vardai.
   Duomenys į repozitoriją nekeliami (Kaggle licencija), kiekvienas atsisiunčia pats.
-- **Žmogus sprendimo cikle:** sistema tik siūlo. Net „Paslėpti“ zona reiškia laikiną paslėpimą,
-  kol moderatorius patvirtins, o ne automatinį pašalinimą. Taip mažinama cenzūros rizika.
+- **Žmogus sprendimo cikle:** sistema nieko neblokuoja – ji tik perspėja autorių ir pasiūlo
+  pataisymą, o sprendžia pats autorius (gali skelbti ir nepaisydamas perspėjimo). Moderatoriaus
+  režime taip pat tik siūloma. Taip mažinama cenzūros rizika ir gerbiama žodžio laisvė.
+- **Šauksmai ≠ agresija:** didžiosios raidės gali reikšti ir džiaugsmą („THANK YOU!!!“) ar būti
+  regos sutrikimų turinčių žmonių įprotis, todėl vien šauksmas sukelia tik švelnų perspėjimą.
 - **Šališkumas:** Jigsaw duomenyse tapatybės žodžiai („gay“, „muslim“, „black“) dažnai pasitaiko
   toksiškuose komentaruose, todėl modelis gali klaidingai žymėti neutralius sakinius.
   `evaluate.py` atlieka **šališkumo testą** su neutraliais šablonais (`bias_test.png`).
@@ -227,6 +285,8 @@ F1 pagal kategoriją, šališkumo testas, EDA). Sėkmės / nesėkmės pavyzdžia
 - Retos kategorijos (`threat`, `identity_hate` < 1 %) atpažįstamos daug prasčiau.
 - DistilBERT mato tik pirmus 128 žetonus; labai ilguose komentaruose agresija pabaigoje gali būti praleista.
 - Anotacijos subjektyvios: žmonės ne visada sutaria, kas yra „toksiška“.
+- Šauksmų detektorius paremtas taisyklėmis: santrumpų sąrašas ribotas (nauja santrumpa gali būti
+  palaikyta šauksmu), o džiaugsmingas šauksmas („SO HAPPY!!!“) irgi sukelia švelnų perspėjimą.
 - DI žodžių filtras gali praleisti retus įžeidimus, kurių modelis beveik nematė, ir lėtesnis
   už paprastą tikrinimą (kelis kartus perskaičiuoja komentarą), todėl CSV režime valoma iki 300 komentarų.
 
@@ -249,7 +309,6 @@ F1 pagal kategoriją, šališkumo testas, EDA). Sėkmės / nesėkmės pavyzdžia
 
 | Narys | Atsakomybė |
 |---|---|
-| | Duomenys ir EDA |
-| | Baseline modelis |
-| | DistilBERT modelis |
-| | Vertinimas, XAI, sąsaja, ataskaita |
+| Neilas Rimkus | |
+| Rokas Razokas | |
+| Rokas Rapalavičius | |

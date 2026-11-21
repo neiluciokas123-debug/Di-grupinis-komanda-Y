@@ -1,7 +1,10 @@
 """Grafinė sąsaja (demonstracijai):  streamlit run app.py
 
-Sistema yra INFORMACINĖ: ji tik siūlo sprendimą, o galutinį sprendimą (publikuoti ar
-pašalinti) priima žmogus-moderatorius.
+Tema Nr. 49: prieš paskelbiant viešą komentarą sistema PERSPĖJA autorių, jei jo žinutė
+turi toksiškumo požymių (patyčios, įžeidimai, šauksmai), ir pasiūlo pataisytą versiją.
+
+Sistema yra INFORMACINĖ: ji nieko neblokuoja. Galutinį sprendimą (redaguoti ar skelbti
+vis tiek) priima pats autorius; papildomas skirtukas skirtas moderatoriui.
 """
 import html
 import time
@@ -13,6 +16,8 @@ import config as C
 from src.censor import censor
 from src.explain import occlusion
 from src.predict import available_models, zone
+from src.shouting import detect as detect_shouting
+from src.warn import check_before_post
 
 st.set_page_config(page_title="Komentarų agresijos filtras", page_icon="🛡️", layout="wide")
 
@@ -57,6 +62,18 @@ def set_example(t):
     st.session_state["text"] = t
 
 
+def set_draft(t):
+    st.session_state["draft"] = t
+    st.session_state["pending"] = None
+
+
+# --------------------------------------------- būsena: paskelbti komentarai ir statistika
+st.session_state.setdefault("feed", [])          # [(tekstas, kaip paskelbta)]
+st.session_state.setdefault("pending", None)     # src.warn.Warning, laukiantis autoriaus sprendimo
+st.session_state.setdefault("stats", {"Patikrinta": 0, "Perspėta": 0, "Pataisė": 0,
+                                      "Skelbė vis tiek": 0})
+
+
 # ------------------------------------------------------------------ šoninė juosta
 models = available_models()
 st.sidebar.title("🛡️ Agresijos filtras")
@@ -69,9 +86,12 @@ thr = model.thresholds[C.MAIN_LABEL]
 st.sidebar.markdown(
     f"""
 **Sprendimo zonos** (agresyvumo tikimybė):
-- < {C.ZONE_LOW:.2f} → publikuoti
-- {C.ZONE_LOW:.2f}–{C.ZONE_HIGH:.2f} → moderatoriui
-- ≥ {C.ZONE_HIGH:.2f} → paslėpti iki patvirtinimo
+- < {C.ZONE_LOW:.2f} → skelbiama iš karto
+- {C.ZONE_LOW:.2f}–{C.ZONE_HIGH:.2f} → švelnus perspėjimas autoriui
+- ≥ {C.ZONE_HIGH:.2f} → aiškus perspėjimas autoriui
+
+**📢 Šauksmai** (DIDŽIOSIOS raidės, „!!!“, „STOOOP“) aptinkami
+atskiru detektoriumi – DI modeliai raidžių dydžio nemato.
 
 Modelio F1-optimalus slenkstis: **{thr:.2f}**
 
@@ -80,16 +100,127 @@ Modelio F1-optimalus slenkstis: **{thr:.2f}**
 komentarą agresyvų (pagal kontekstą, ne pagal sąrašą).
 
 ---
-Sistema **tik pataria**. Galutinį sprendimą visada priima žmogus.
+Sistema **tik perspėja**. Galutinį sprendimą visada priima žmogus.
 Veikia tik **anglų kalba**.
 """
 )
 
-tab1, tab2, tab3 = st.tabs(["💬 Vienas komentaras", "📋 Komentarų srautas (CSV)", "📊 Modelių palyginimas"])
+tab0, tab1, tab2, tab3 = st.tabs(["✍️ Rašyti komentarą", "🔍 Detali analizė",
+                                  "📋 Moderatoriui (CSV)", "📊 Modelių palyginimas"])
+
+# ------------------------------------------------------------------ 0. perspėjimas autoriui
+WARN_STYLE = {"strong": ("#c0392b", "#fdecea"), "soft": ("#b9770e", "#fef5e7")}
+AUTHOR_EXAMPLES = [
+    "Great explanation, thanks for sharing!",
+    "WHY DOES NOBODY READ THE RULES??? THIS IS RIDICULOUS!!!",
+    "You are an idiot and nobody wants you here.",
+    "This article is crap, whoever wrote it is a moron.",
+    "SHUT UP, YOU PATHETIC LOSER!!!",
+    "I disagree, the second source says the opposite.",
+]
+
+
+def publish(text: str, how: str) -> None:
+    st.session_state["feed"].insert(0, (text, how))
+    st.session_state["draft"] = ""
+    st.session_state["pending"] = None
+
+
+def on_post():
+    text = st.session_state.get("draft", "").strip()
+    if not text:
+        return
+    w = check_before_post(model, text)
+    st.session_state["stats"]["Patikrinta"] += 1
+    if w.needs_warning:
+        st.session_state["stats"]["Perspėta"] += 1
+        st.session_state["pending"] = w
+    else:
+        publish(text, "✅ be perspėjimo")
+
+
+def on_accept_suggestion(text: str):
+    st.session_state["stats"]["Pataisė"] += 1
+    publish(text, "✏️ pataisyta pagal pasiūlymą")
+
+
+def on_post_anyway():
+    w = st.session_state["pending"]
+    st.session_state["stats"]["Skelbė vis tiek"] += 1
+    how = "⚠️ autorius skelbė nepaisydamas perspėjimo"
+    if w.level == "strong":
+        how += " (pažymėta moderatoriui)"
+    publish(w.text, how)
+
+
+def on_edit():
+    st.session_state["stats"]["Pataisė"] += 1
+    st.session_state["pending"] = None
+
+
+with tab0:
+    st.subheader("Parašykite viešą komentarą")
+    st.caption("Prieš paskelbiant DI patikrina, ar žinutėje nėra patyčių, įžeidimų ar šauksmų, "
+               "ir jei reikia – perspėja. Sprendžiate jūs: pataisyti ar skelbti vis tiek. "
+               "Veikia tik anglų kalba.")
+    cols = st.columns(3)
+    for i, ex in enumerate(AUTHOR_EXAMPLES):
+        cols[i % 3].button(ex[:38] + ("…" if len(ex) > 38 else ""), key=f"aex{i}",
+                           on_click=set_draft, args=(ex,))
+    st.text_area("Jūsų komentaras", key="draft", height=110, placeholder="Write a comment...")
+    st.button("📤 Skelbti", type="primary", on_click=on_post)
+
+    w = st.session_state["pending"]
+    if w is not None and w.text == st.session_state.get("draft", "").strip():
+        border, bg = WARN_STYLE[w.level]
+        items = "".join(f"<li>{html.escape(r)}</li>" for r in w.reasons)
+        hint = ("Tokia žinutė gali įskaudinti kitus ir būti paslėpta. Ar tikrai norite ją skelbti?"
+                if w.level == "strong" else "Gal norėtumėte perfrazuoti? Rami žinutė dažniau sulaukia atsakymo.")
+        st.markdown(f'<div style="border-left:6px solid {border};background:{bg};color:#222;'
+                    f'padding:14px 18px;border-radius:8px;margin-top:8px">'
+                    f'<div style="font-size:1.2rem;font-weight:600">{w.title}</div>'
+                    f'<div style="margin:6px 0">{hint}</div><ul style="margin:0">{items}</ul></div>',
+                    unsafe_allow_html=True)
+
+        # Pasiūlymas: pirmiausia – paslėpti agresyvūs žodžiai (jei to užtenka), kitaip – be šauksmų
+        suggestion = None
+        if w.censor is not None and w.censor.n_masked and w.censor.success:
+            suggestion = ("🧹 Pasiūlymas – paslėpti įžeidžiantys žodžiai", w.censor.censored)
+        elif w.calm_text and w.prob < C.ZONE_LOW:
+            suggestion = ("🔉 Pasiūlymas – ta pati mintis be šauksmų", w.calm_text)
+        if suggestion:
+            st.markdown(f"**{suggestion[0]}:**")
+            st.markdown(f'<div style="border:1px solid #888;border-radius:8px;padding:10px 14px;'
+                        f'font-family:monospace">{html.escape(suggestion[1])}</div>',
+                        unsafe_allow_html=True)
+        elif w.prob >= C.ZONE_LOW:
+            st.info("DI nerado atskirų įžeidžiančių žodžių – agresija slypi pačioje sakinio prasmėje "
+                    "(pvz. grasinimas ar pajuoka). Siūlome žinutę perrašyti savais žodžiais.")
+
+        b1, b2, b3 = st.columns(3)
+        if suggestion:
+            b1.button("✅ Skelbti pasiūlytą versiją", on_click=on_accept_suggestion,
+                      args=(suggestion[1],), use_container_width=True)
+        b2.button("✏️ Redaguoti pačiam", on_click=on_edit, use_container_width=True)
+        b3.button("📢 Skelbti vis tiek", on_click=on_post_anyway, use_container_width=True)
+
+    if st.session_state["feed"]:
+        st.markdown("---\n#### 💬 Paskelbti komentarai")
+        for text, how in st.session_state["feed"][:20]:
+            st.markdown(f'<div style="border:1px solid #ccc;border-radius:8px;padding:8px 12px;margin:6px 0">'
+                        f'{html.escape(text)}<div style="font-size:0.8rem;color:#888;margin-top:4px">'
+                        f'{html.escape(how)}</div></div>', unsafe_allow_html=True)
+
+    s = st.session_state["stats"]
+    if s["Patikrinta"]:
+        st.markdown("---\n**Šios sesijos statistika** (vartotojo elgsena po perspėjimo)")
+        k = st.columns(4)
+        for col, (name, val) in zip(k, s.items()):
+            col.metric(name, val)
 
 # ------------------------------------------------------------------ 1. vienas komentaras
 with tab1:
-    st.subheader("Įveskite komentarą (anglų kalba)")
+    st.subheader("Detali komentaro analizė (anglų kalba)")
     cols = st.columns(3)
     for i, ex in enumerate(EXAMPLES):
         cols[i % 3].button(ex[:38] + ("…" if len(ex) > 38 else ""), key=f"ex{i}",
@@ -109,6 +240,11 @@ with tab1:
                     unsafe_allow_html=True)
         c2.metric("Agresyvumo tikimybė", f"{p:.1%}")
         c3.metric("Apdorojimo laikas", f"{ms:.0f} ms")
+
+        sh = detect_shouting(text)
+        if sh.is_shouting:
+            st.warning(f"📢 Šauksmas ({'stiprus' if sh.level == 'strong' else 'švelnus'}): "
+                       + "; ".join(sh.reasons))
 
         if model.has_categories:
             st.markdown("**Kategorijos**")
